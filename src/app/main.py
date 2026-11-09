@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.logging_config import configure_logging
+from app.ollama import generate_response
 
 
 configure_logging()
@@ -28,6 +30,21 @@ class Item(ItemCreate):
     """Item returned by the API."""
 
     id: int
+
+
+class GenerateRequest(BaseModel):
+    """Prompt accepted by the Ollama generation endpoint."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    prompt: str = Field(min_length=1, max_length=4_000)
+
+
+class GenerateResponse(BaseModel):
+    """Generated response returned by the API."""
+
+    model: str
+    response: str
 
 
 items: list[Item] = []
@@ -62,3 +79,20 @@ def create_item(payload: ItemCreate) -> Item:
     items.append(item)
     logger.info("Created item id=%s name=%s quantity=%s", item.id, item.name, item.quantity)
     return item
+
+
+@app.post("/generate", response_model=GenerateResponse, tags=["generation"])
+async def generate(payload: GenerateRequest) -> GenerateResponse:
+    """Generate text with the configured local Ollama model."""
+    try:
+        response = await generate_response(payload.prompt)
+    except ConnectionError as exc:
+        logger.error("Ollama connection failed: %s", exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        logger.error("Ollama generation failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5")
+    logger.info("Generated response with model=%s", model)
+    return GenerateResponse(model=model, response=response)

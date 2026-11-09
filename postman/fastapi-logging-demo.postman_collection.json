@@ -29,6 +29,15 @@
         "body": {"mode": "raw", "raw": "{\"name\":\"\",\"quantity\":0}"},
         "url": "{{base_url}}/items"
       }
+    },
+    {
+      "name": "Generate with Qwen - 200",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"prompt\":\"Explain FastAPI in one sentence.\"}"},
+        "url": "{{base_url}}/generate"
+      }
     }
   ]
 }

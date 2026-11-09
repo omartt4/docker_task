@@ -31,3 +31,31 @@ def test_create_item_rejects_invalid_payload() -> None:
 def test_create_item_rejects_unknown_types() -> None:
     response = client.post("/items", json={"name": "Notebook", "quantity": "many"})
     assert response.status_code == 422
+
+
+def test_generate_returns_ollama_response(monkeypatch) -> None:
+    async def fake_generate(prompt: str) -> str:
+        assert prompt == "Say hello"
+        return "Hello!"
+
+    monkeypatch.setattr("app.main.generate_response", fake_generate)
+    response = client.post("/generate", json={"prompt": "Say hello"})
+
+    assert response.status_code == 200
+    assert response.json() == {"model": "qwen2.5:1.5", "response": "Hello!"}
+
+
+def test_generate_rejects_blank_prompt() -> None:
+    response = client.post("/generate", json={"prompt": " "})
+    assert response.status_code == 422
+
+
+def test_generate_returns_service_unavailable_when_ollama_is_down(monkeypatch) -> None:
+    async def fake_generate(_: str) -> str:
+        raise ConnectionError("Could not connect to Ollama")
+
+    monkeypatch.setattr("app.main.generate_response", fake_generate)
+    response = client.post("/generate", json={"prompt": "Say hello"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Could not connect to Ollama"
