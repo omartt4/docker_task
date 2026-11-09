@@ -1,0 +1,1 @@
+"""FastAPI logging demo application."""

@@ -1,0 +1,34 @@
+{
+  "info": {
+    "name": "FastAPI Logging Demo",
+    "_postman_id": "fastapi-logging-demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000"}
+  ],
+  "item": [
+    {
+      "name": "Health check - 200",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/health"}
+    },
+    {
+      "name": "Create item - 201",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"name\":\"Notebook\",\"quantity\":2}"},
+        "url": "{{base_url}}/items"
+      }
+    },
+    {
+      "name": "Create item - validation error 422",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"name\":\"\",\"quantity\":0}"},
+        "url": "{{base_url}}/items"
+      }
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+# FastAPI Logging Demo
+
+This project is a small FastAPI service built and managed with [uv](https://docs.astral.sh/uv/).
+It includes configurable console/file logging, Pydantic request validation, automated tests,
+a Postman collection, and a Docker image.
+
+## Local setup
+
+```powershell
+uv sync
+uv run pytest
+uv run uvicorn app.main:app --app-dir src --reload
+```
+
+The API is available at `http://localhost:8000`; Swagger UI is at
+`http://localhost:8000/docs`. Logs are written to `logs/app.log` and stdout.
+Set `LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`) and `LOG_FILE`
+to customize logging.
+
+## API validation
+
+Import `postman/fastapi-logging-demo.postman_collection.json` into Postman and run:
+
+| Request | Expected result |
+| --- | --- |
+| `GET /health` | `200 {"status":"ok"}` |
+| `POST /items` with `{"name":"Notebook","quantity":2}` | `201` with generated `id` |
+| `POST /items` with `{"name":"","quantity":0}` | `422` validation response |
+
+The same requests can be run from Swagger UI.
+
+## Docker deployment
+
+Generate the lockfile, build, and run:
+
+```powershell
+uv lock
+docker build -t fastapi-logging-demo .
+docker run --name fastapi-logging-demo -p 8000:8000 fastapi-logging-demo
+curl.exe http://localhost:8000/health
+docker stop fastapi-logging-demo
+docker rm fastapi-logging-demo
+```
+
+The Dockerfile uses a non-development uv environment and listens on all interfaces.
+For a reproducible build, commit the generated `uv.lock` file.
+
+## Evidence
+
+The commands above are the exact build, run, validation, stop, and remove workflow.
+Capture the Docker Desktop or terminal output for each command in Postman/Docker
+submission screenshots. Automated API and logging validation is covered by `tests/`.
