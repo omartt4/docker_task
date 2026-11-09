@@ -58,12 +58,3 @@ curl.exe http://localhost:8000/health
 docker stop fastapi-logging-demo
 docker rm fastapi-logging-demo
 ```
-
-The Dockerfile uses a non-development uv environment and listens on all interfaces.
-For a reproducible build, commit the generated `uv.lock` file.
-
-## Evidence
-
-The commands above are the exact build, run, validation, stop, and remove workflow.
-Capture the Docker Desktop or terminal output for each command in Postman/Docker
-submission screenshots. Automated API and logging validation is covered by `tests/`.
