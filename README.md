@@ -50,7 +50,7 @@ Generate the lockfile, build, and run:
 
 ```powershell
 uv lock
-docker build -t fastapi-logging-demo .
+docker build -f docker/Dockerfile -t fastapi-logging-demo .
 docker run --name fastapi-logging-demo -p 8000:8000 `
   -e OLLAMA_BASE_URL=http://host.docker.internal:11434 `
   -e OLLAMA_MODEL=qwen2.5:1.5 fastapi-logging-demo
