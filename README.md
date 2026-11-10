@@ -160,16 +160,21 @@ Generate the lockfile, build, and run:
 ```powershell
 uv lock
 docker build -f docker/Dockerfile -t fastapi-logging-demo .
-docker run --name fastapi-logging-demo -p 8000:8000 `
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 `
-  -e OLLAMA_MODEL=qwen2.5:1.5 fastapi-logging-demo
-curl.exe http://localhost:8000/health
+docker run --name fastapi-logging-demo -p 8001:8000 `
+  -e DATABASE_URL="postgresql://omar:123456@host.docker.internal:8000/mydatabase" `
+  -e REDIS_URL="redis://host.docker.internal:6379/0" `
+  -e OLLAMA_BASE_URL="http://host.docker.internal:11434" `
+  -e OLLAMA_MODEL="qwen2.5:1.5b" fastapi-logging-demo
+curl.exe http://localhost:8001/health
+curl.exe http://localhost:8001/db/health
+curl.exe "http://localhost:8001/requests/recent?limit=20"
 docker stop fastapi-logging-demo
 docker rm fastapi-logging-demo
 ```
-<<<<<<< HEAD
 
-The Dockerfile uses a non-development uv environment and listens on all interfaces.
+The Dockerfile uses a non-development uv environment, listens on all interfaces,
+and supplies Docker Desktop host-gateway defaults for PostgreSQL, Redis, and Ollama.
+Port `8001` is used because PostgreSQL is mapped to host port `8000`.
 For a reproducible build, commit the generated `uv.lock` file.
 
 ## Validation results
