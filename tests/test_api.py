@@ -16,6 +16,23 @@ def test_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_database_health_check(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.check_database_connection", lambda: True)
+    response = client.get("/db/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "database": "postgresql"}
+
+
+def test_database_health_check_returns_unavailable(monkeypatch) -> None:
+    def database_down() -> bool:
+        raise ConnectionError("database down")
+
+    monkeypatch.setattr("app.main.check_database_connection", database_down)
+    response = client.get("/db/health")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Database unavailable"}
+
+
 def test_create_item_accepts_valid_payload() -> None:
     response = client.post("/items", json={"name": "Notebook", "quantity": 2})
     assert response.status_code == 201

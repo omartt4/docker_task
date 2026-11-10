@@ -8,8 +8,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
+import psycopg
 
 from app.logging_config import configure_logging
+from app.database import check_database_connection
 from app.ollama import generate_response
 
 
@@ -70,6 +72,19 @@ def health() -> dict[str, str]:
     """Report service availability."""
     logger.info("Health check requested")
     return {"status": "ok"}
+
+
+@app.get("/db/health", tags=["system"])
+def database_health() -> dict[str, str]:
+    """Check that the configured PostgreSQL database accepts queries."""
+    try:
+        if not check_database_connection():
+            raise RuntimeError("Database health query returned an unexpected result")
+    except (ConnectionError, psycopg.Error, RuntimeError) as exc:
+        logger.error("Database health check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    logger.info("Database health check passed")
+    return {"status": "ok", "database": "postgresql"}
 
 
 @app.post("/items", response_model=Item, status_code=status.HTTP_201_CREATED, tags=["items"])
