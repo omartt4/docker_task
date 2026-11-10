@@ -182,7 +182,7 @@ For a reproducible build, commit the generated `uv.lock` file.
 The automated API and logging suite passes:
 
 ```text
-9 passed
+14 passed
 ```
 
 Docker was built and verified with:
