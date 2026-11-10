@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import psycopg
 
 from app.main import app, items
 
@@ -56,6 +57,7 @@ def test_generate_returns_ollama_response(monkeypatch) -> None:
         return "Hello!"
 
     monkeypatch.setattr("app.main.generate_response", fake_generate)
+    monkeypatch.setattr("app.main.save_generation", lambda *_: None)
     response = client.post("/generate", json={"prompt": "Say hello"})
 
     assert response.status_code == 200
@@ -76,3 +78,18 @@ def test_generate_returns_service_unavailable_when_ollama_is_down(monkeypatch) -
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Could not connect to Ollama"
+
+
+def test_generate_returns_service_unavailable_when_database_save_fails(monkeypatch) -> None:
+    async def fake_generate(_: str) -> str:
+        return "Hello!"
+
+    def database_save_fails(*_) -> None:
+        raise psycopg.OperationalError("database unavailable")
+
+    monkeypatch.setattr("app.main.generate_response", fake_generate)
+    monkeypatch.setattr("app.main.save_generation", database_save_fails)
+    response = client.post("/generate", json={"prompt": "Say hello"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Could not save response"

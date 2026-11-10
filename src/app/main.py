@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 import psycopg
 
 from app.logging_config import configure_logging
-from app.database import check_database_connection
+from app.database import check_database_connection, initialize_database, save_generation
 from app.ollama import generate_response
 
 
@@ -54,6 +54,11 @@ items: list[Item] = []
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    try:
+        initialize_database()
+    except psycopg.Error as exc:
+        logger.error("Database initialization failed: %s", exc)
+        raise
     logger.info("API started")
     yield
     logger.info("API stopped")
@@ -109,5 +114,10 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5")
+    try:
+        save_generation(payload.prompt, model, response)
+    except psycopg.Error as exc:
+        logger.error("Failed to save generation: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not save response") from exc
     logger.info("Generated response with model=%s", model)
     return GenerateResponse(model=model, response=response)

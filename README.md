@@ -116,6 +116,17 @@ The `POST /generate` endpoint calls Ollama's `/api/generate` API. It defaults to
 and `OLLAMA_MODEL`. When running the API in Docker Desktop on Windows, use
 `OLLAMA_BASE_URL=http://host.docker.internal:11434`.
 
+Every successful generation is stored in PostgreSQL in the `generations` table
+with its prompt, model, response, and creation timestamp. The table is created
+automatically when the API starts.
+
+Query stored generations:
+
+```powershell
+$env:DATABASE_URL="postgresql://omar:123456@localhost:8000/mydatabase"
+uv run python -c "import os, psycopg; conn=psycopg.connect(os.environ['DATABASE_URL']); print(conn.execute('SELECT id, prompt, model, response, created_at FROM generations ORDER BY id DESC').fetchall())"
+```
+
 The exact model tag available on the validation machine is `qwen2.5:1.5b`, so set
 `OLLAMA_MODEL=qwen2.5:1.5b` when using that local installation.
 
