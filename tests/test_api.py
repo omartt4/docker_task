@@ -58,6 +58,9 @@ def test_generate_returns_ollama_response(monkeypatch) -> None:
 
     monkeypatch.setattr("app.main.generate_response", fake_generate)
     monkeypatch.setattr("app.main.save_generation", lambda *_: None)
+    monkeypatch.setattr("app.main.get_cached_response", lambda *_: None)
+    monkeypatch.setattr("app.main.cache_response", lambda *_: None)
+    monkeypatch.setattr("app.main.record_request", lambda *_, **__: None)
     response = client.post("/generate", json={"prompt": "Say hello"})
 
     assert response.status_code == 200
@@ -74,10 +77,44 @@ def test_generate_returns_service_unavailable_when_ollama_is_down(monkeypatch) -
         raise ConnectionError("Could not connect to Ollama")
 
     monkeypatch.setattr("app.main.generate_response", fake_generate)
+    monkeypatch.setattr("app.main.get_cached_response", lambda *_: None)
     response = client.post("/generate", json={"prompt": "Say hello"})
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Could not connect to Ollama"
+
+
+def test_generate_returns_cached_response(monkeypatch) -> None:
+    async def should_not_generate(_: str) -> str:
+        raise AssertionError("Ollama should not be called on a cache hit")
+
+    monkeypatch.setattr("app.main.get_cached_response", lambda *_: "Cached answer")
+    monkeypatch.setattr("app.main.generate_response", should_not_generate)
+    monkeypatch.setattr("app.main.record_request", lambda *_, **__: None)
+    response = client.post("/generate", json={"prompt": "Say hello"})
+
+    assert response.status_code == 200
+    assert response.json()["response"] == "Cached answer"
+
+
+def test_recent_requests_returns_redis_history(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.recent_requests",
+        lambda _: [
+            {
+                "id": "request-1",
+                "prompt": "Say hello",
+                "model": "qwen2.5:1.5b",
+                "response": "Hello!",
+                "cached": False,
+                "created_at": "2026-11-10T10:00:00+00:00",
+            }
+        ],
+    )
+    response = client.get("/requests/recent?limit=1")
+
+    assert response.status_code == 200
+    assert response.json()[0]["prompt"] == "Say hello"
 
 
 def test_generate_returns_service_unavailable_when_database_save_fails(monkeypatch) -> None:

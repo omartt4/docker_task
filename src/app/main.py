@@ -9,10 +9,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 import psycopg
+from redis.exceptions import RedisError
 
 from app.logging_config import configure_logging
 from app.database import check_database_connection, initialize_database, save_generation
 from app.ollama import generate_response
+from app.redis_store import (
+    cache_response,
+    get_cached_response,
+    recent_requests,
+    record_request,
+)
 
 
 configure_logging()
@@ -47,6 +54,17 @@ class GenerateResponse(BaseModel):
 
     model: str
     response: str
+
+
+class RequestRecord(BaseModel):
+    """A request and response stored in Redis history."""
+
+    id: str
+    prompt: str
+    model: str
+    response: str
+    cached: bool
+    created_at: str
 
 
 items: list[Item] = []
@@ -103,7 +121,18 @@ def create_item(payload: ItemCreate) -> Item:
 
 @app.post("/generate", response_model=GenerateResponse, tags=["generation"])
 async def generate(payload: GenerateRequest) -> GenerateResponse:
-    """Generate text with the configured local Ollama model."""
+    """Generate text with caching and Redis-backed request history."""
+    model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5")
+    try:
+        response = get_cached_response(payload.prompt, model)
+        if response is not None:
+            record_request(payload.prompt, model, response, cached=True)
+            logger.info("Returned cached response with model=%s", model)
+            return GenerateResponse(model=model, response=response)
+    except RedisError as exc:
+        logger.error("Redis cache lookup failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Redis unavailable") from exc
+
     try:
         response = await generate_response(payload.prompt)
     except ConnectionError as exc:
@@ -113,11 +142,28 @@ async def generate(payload: GenerateRequest) -> GenerateResponse:
         logger.error("Ollama generation failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    model = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5")
     try:
         save_generation(payload.prompt, model, response)
     except psycopg.Error as exc:
         logger.error("Failed to save generation: %s", exc)
         raise HTTPException(status_code=503, detail="Could not save response") from exc
+    try:
+        cache_response(payload.prompt, model, response)
+        record_request(payload.prompt, model, response, cached=False)
+    except RedisError as exc:
+        logger.error("Redis response storage failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Redis unavailable") from exc
     logger.info("Generated response with model=%s", model)
     return GenerateResponse(model=model, response=response)
+
+
+@app.get("/requests/recent", response_model=list[RequestRecord], tags=["system"])
+def get_recent_requests(limit: int = 20) -> list[RequestRecord]:
+    """Return recent generation requests stored in Redis."""
+    if not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 100")
+    try:
+        return [RequestRecord.model_validate(record) for record in recent_requests(limit)]
+    except RedisError as exc:
+        logger.error("Redis request history lookup failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Redis unavailable") from exc
